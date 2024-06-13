@@ -19,7 +19,7 @@ Let me know if there are any other issues by posting a comment or bug report.
 2. Unzip the latest **HarvestCalendar** to the **Mods/** folder
 
 ##### TODO
-- Supports Generic Mod Config Menu
+- ~~Supports Generic Mod Config Menu~~ v1.1.0 Done
 - Add a hover text to the icon / open up a new menu that gives more detailed data for the crops
 - Add a blacklist that allows you to choose ignoring certain crops.
 
