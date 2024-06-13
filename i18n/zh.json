@@ -1,0 +1,21 @@
+{
+  "ToggleMod": "启用模组",
+  "ToggleMod.Desccription": "开启/关闭模组",
+
+  "IconSize": "图标大小",
+  "IconSize.Desccription": "设置显示在日历上的图标大小",
+  "IconSize.Small": "小",
+  "IconSize.Medium": "中",
+  "IconSize.Large": "大",
+  "IconSize.XLarge": "特大",
+
+  "IconPositionX": "图标水平位置",
+  "IconPositionX.Description": "设置图标的位置，0为左1为右",
+
+  "IconPositionY": "图标垂直位置",
+  "IconPOsitionY.Description": "设置图标的位置，0为上1为下"
+
+
+
+
+}

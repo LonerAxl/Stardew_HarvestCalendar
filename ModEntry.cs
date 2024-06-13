@@ -7,6 +7,7 @@ using StardewValley.ItemTypeDefinitions;
 using StardewValley.Menus;
 using StardewValley.TerrainFeatures;
 using System.Linq;
+using HarvestCalendar.Framework;
 
 namespace HarvestCalendar
 {
@@ -15,6 +16,7 @@ namespace HarvestCalendar
     {
 
         Dictionary<int, CalendarDayItem> CalendarDayDict = new();
+        internal Configuration Config = null!;
 
         /*********
         ** Public methods
@@ -24,7 +26,10 @@ namespace HarvestCalendar
         public override void Entry(IModHelper helper)
         {
             I18n.Init(helper.Translation);
-            //helper.Events.Input.ButtonPressed += this.OnButtonPressed;
+            this.Config = helper.ReadConfig<Configuration>();
+
+            helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+
             helper.Events.Display.MenuChanged += this.OnCalendarOpen;
             helper.Events.Display.MenuChanged += this.OnCalendarClosed;
             helper.Events.Display.RenderedActiveMenu += this.OnRenderedActiveCalendar;
@@ -35,13 +40,80 @@ namespace HarvestCalendar
         /*********
         ** Private methods
         *********/
+        /// <summary>
+        /// Set up Generic Mod Config Menu
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
+        {
+            var configMenu = this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+            if (configMenu == null)
+                return;
+            configMenu.Register(
+                mod: this.ModManifest,
+                reset: () => this.Config = new Configuration(),
+                save: () => this.Helper.WriteConfig(this.Config)
+            );
+
+            configMenu.AddBoolOption(
+                mod: this.ModManifest,
+                name: () => Helper.Translation.Get("ToggleMod"),
+                tooltip: () => Helper.Translation.Get("ToggleMod.Desccription"),
+                getValue: () => this.Config.ToggleMod,
+                setValue: value => this.Config.ToggleMod = value
+            );
+
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                name: () => Helper.Translation.Get("IconSize"),
+                tooltip: () => Helper.Translation.Get("IconSize.Desccription"),
+                getValue: () => this.Config.IconSize,
+                setValue: value => this.Config.IconSize = (int)value,
+                min: 1, max: 4,
+                interval: 1,
+                formatValue: value => {
+                    string[] _ = { Helper.Translation.Get("IconSize.Small"),
+                                Helper.Translation.Get("IconSize.Medium"),
+                                Helper.Translation.Get("IconSize.Large"),
+                                Helper.Translation.Get("IconSize.XLarge") };
+                    return _[(int)value - 1];
+                }
+            );
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                name: () => Helper.Translation.Get("IconPositionX"),
+                tooltip: () => Helper.Translation.Get("IconPositionX.Description"),
+                getValue: () => this.Config.IconX,
+                setValue: value => this.Config.IconX = value,
+                min: 0f, max: 1f,
+                interval: 0.1f
+            );
+            configMenu.AddNumberOption(
+                mod: this.ModManifest,
+                name: () => Helper.Translation.Get("IconPositionY"),
+                tooltip: () => Helper.Translation.Get("IconPOsitionY.Description"),
+                getValue: () => this.Config.IconY,
+                setValue: value => this.Config.IconY = value,
+                min: 0f, max: 1f,
+                interval: 0.1f
+            );
+
+
+        }
+
+
 
         /// <summary>when the player open the Calendar, calculate all crops on the field and predict the harvest day then show it on the calendar.</summary>
         private void OnCalendarOpen(object? sender, MenuChangedEventArgs e) 
         {
+            if (!this.Config.ToggleMod)
+                return;
             // Check if is on Calendar menu
             if (this.isCalendarPage())
             {
+                if (this.CalendarDayDict.Count != 0)
+                    return;
 
                 // TODO: Currently not support multiplayer as farmhands can't get all locations? Not sure
 
@@ -103,6 +175,8 @@ namespace HarvestCalendar
         /// <param name="e"></param>
         private void OnRenderedActiveCalendar(object? sender, RenderedActiveMenuEventArgs e) 
         {
+            if (!this.Config.ToggleMod)
+                return;
             if (!isCalendarPage())
                 return;
 
@@ -119,13 +193,15 @@ namespace HarvestCalendar
                 var produce = ItemRegistry.GetDataOrErrorItem(item.iconId);
                 var iconTexture = produce.GetTexture();
 
-                int offsetX = iconTexture.Width / 8;
-                int offsetY = iconTexture.Height / 16;
-                
+                int offsetX = days[i-1].bounds.Width / 10 * this.Config.IconSize;
+                int offsetY = days[i - 1].bounds.Height / 10 * this.Config.IconSize;
+
                 // position hard coded to be top right corner
                 // three posible position in the future: topright, middleleft, bottomleft
                 // topright might be the best
-                Vector2 position = new Vector2(days[i - 1].bounds.Right - offsetX, days[i - 1].bounds.Top);
+                //Vector2 position = new Vector2(days[i - 1].bounds.Right - offsetX, days[i - 1].bounds.Bottom - offsetY);
+                Vector2 position = new Vector2((days[i - 1].bounds.Width - offsetX)*this.Config.IconX + days[i-1].bounds.Left,
+                                                (days[i - 1].bounds.Height - offsetY) * this.Config.IconY + days[i-1].bounds.Top);
 
                 e.SpriteBatch.Draw(iconTexture, new Rectangle((int)position.X, (int)position.Y, offsetX, offsetY), produce.GetSourceRect(), Color.White);
 
@@ -165,8 +241,11 @@ namespace HarvestCalendar
         /// <param name="e"></param>
         private void OnCalendarClosed(object? sender, MenuChangedEventArgs e) 
         {
-            if (Game1.activeClickableMenu == null)
+            if (!this.Config.ToggleMod)
+                return;
+            if (Game1.activeClickableMenu == null && e.OldMenu is Billboard)
                 this.CalendarDayDict = new();
+            
         }
 
 
@@ -223,6 +302,10 @@ namespace HarvestCalendar
             // Blueberry (harvested): current = 5 | day = 4 | days = 1 3 3 4 2 99999 | regrowAfterHarvest = 4 | result => 4
             // Blueberry (harvested): current = 5 | day = 0 | days = 1 3 3 4 2 99999 | regrowAfterHarvest = 4 | result => 0
             var result = 0;
+            if (crop.Dirt.readyForHarvest()) 
+            {
+                return (result, crop.RegrowsAfterHarvest() ? crop.GetData().RegrowDays : -1);
+            }
             for (var phase = currentPhase; phase < cropPhaseDays.Length; phase++)
             {
                 if (cropPhaseDays[phase] < 99999)
@@ -293,6 +376,7 @@ namespace HarvestCalendar
 
             return result;
         }
+
 
 
 

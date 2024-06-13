@@ -1,3 +1,21 @@
 {
-  "placeholder":  "placeholderxxx"
+  "ToggleMod": "Toggle Mod",
+  "ToggleMod.Desccription": "Turn this mod on/off",
+
+  "IconSize": "Icon Size",
+  "IconSize.Desccription": "Set the Size of the Icon shown on Calendar",
+  "IconSize.Small": "Small",
+  "IconSize.Medium": "Medium",
+  "IconSize.Large": "Large",
+  "IconSize.XLarge": "XLarge",
+
+  "IconPositionX": "Icon Horizontal Position",
+  "IconPositionX.Description": "Set the position of the Icon, 0 means left and 1 means right",
+
+  "IconPositionY": "Icon Vertical Position",
+  "IconPOsitionY.Description": "Set the position of the Icon, 0 means top and 1 means bottom"
+
+
+
+
 }
