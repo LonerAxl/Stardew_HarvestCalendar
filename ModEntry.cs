@@ -3,11 +3,13 @@ using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
+using StardewModdingAPI.Utilities;
 using StardewValley.ItemTypeDefinitions;
 using StardewValley.Menus;
 using StardewValley.TerrainFeatures;
 using System.Linq;
 using HarvestCalendar.Framework;
+using HarvestCalendar.Menu;
 
 namespace HarvestCalendar
 {
@@ -27,9 +29,11 @@ namespace HarvestCalendar
         {
             I18n.Init(helper.Translation);
             this.Config = helper.ReadConfig<Configuration>();
+            this.Config.AddHelper(helper);
 
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
 
+            helper.Events.Input.ButtonsChanged += OnButtonChanged;
             helper.Events.Display.MenuChanged += this.OnCalendarOpen;
             helper.Events.Display.MenuChanged += this.OnCalendarClosed;
             helper.Events.Display.RenderedActiveMenu += this.OnRenderedActiveCalendar;
@@ -58,32 +62,32 @@ namespace HarvestCalendar
 
             configMenu.AddBoolOption(
                 mod: this.ModManifest,
-                name: () => Helper.Translation.Get("ToggleMod"),
-                tooltip: () => Helper.Translation.Get("ToggleMod.Desccription"),
+                name: () => I18n.ToggleMod(),
+                tooltip: () => I18n.ToggleMod_Desccription(),
                 getValue: () => this.Config.ToggleMod,
                 setValue: value => this.Config.ToggleMod = value
             );
 
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
-                name: () => Helper.Translation.Get("IconSize"),
-                tooltip: () => Helper.Translation.Get("IconSize.Desccription"),
+                name: () => I18n.IconSize(),
+                tooltip: () => I18n.IconSize_Desccription(),
                 getValue: () => this.Config.IconSize,
                 setValue: value => this.Config.IconSize = (int)value,
                 min: 1, max: 4,
                 interval: 1,
                 formatValue: value => {
-                    string[] _ = { Helper.Translation.Get("IconSize.Small"),
-                                Helper.Translation.Get("IconSize.Medium"),
-                                Helper.Translation.Get("IconSize.Large"),
-                                Helper.Translation.Get("IconSize.XLarge") };
+                    string[] _ = { I18n.IconSize_Small(),
+                                I18n.IconSize_Medium(),
+                                I18n.IconSize_Large(),
+                                I18n.IconSize_XLarge() };
                     return _[(int)value - 1];
                 }
             );
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
-                name: () => Helper.Translation.Get("IconPositionX"),
-                tooltip: () => Helper.Translation.Get("IconPositionX.Description"),
+                name: () => I18n.IconPositionX(),
+                tooltip: () => I18n.IconPositionX_Description(),
                 getValue: () => this.Config.IconX,
                 setValue: value => this.Config.IconX = value,
                 min: 0f, max: 1f,
@@ -91,18 +95,37 @@ namespace HarvestCalendar
             );
             configMenu.AddNumberOption(
                 mod: this.ModManifest,
-                name: () => Helper.Translation.Get("IconPositionY"),
-                tooltip: () => Helper.Translation.Get("IconPOsitionY.Description"),
+                name: () => I18n.IconPositionY(),
+                tooltip: () => I18n.IconPositionY_Description(),
                 getValue: () => this.Config.IconY,
                 setValue: value => this.Config.IconY = value,
                 min: 0f, max: 1f,
                 interval: 0.1f
             );
-
-
+            configMenu.AddKeybindList(
+                mod: this.ModManifest,
+                name: () => I18n.ToggleBlackList(),
+                tooltip: () => I18n.ToggleBlackList_Description(),
+                getValue: () => this.Config.ToggleBlackListKeybind,
+                setValue: val => this.Config.ToggleBlackListKeybind = val
+            );
+            configMenu.AddKeybindList(
+                mod: this.ModManifest,
+                name: () => I18n.BlacklistCropKeybind(),
+                tooltip: () => I18n.BlacklistCropKeybind_Description(),
+                getValue: () => this.Config.BlacklistTheCropKeybind,
+                setValue: val => this.Config.BlacklistTheCropKeybind = val
+            );
+            configMenu.AddKeybindList(
+                mod: this.ModManifest,
+                name: () => I18n.ToggleCalendarDayDetail(),
+                tooltip: () => I18n.ToggleCalendarDayDetail_Description(),
+                getValue: () => this.Config.ToggleCalendarDayDetailKeybind,
+                setValue: val => this.Config.ToggleCalendarDayDetailKeybind = val
+            );
         }
 
-
+        
 
         /// <summary>when the player open the Calendar, calculate all crops on the field and predict the harvest day then show it on the calendar.</summary>
         private void OnCalendarOpen(object? sender, MenuChangedEventArgs e) 
@@ -110,7 +133,7 @@ namespace HarvestCalendar
             if (!this.Config.ToggleMod)
                 return;
             // Check if is on Calendar menu
-            if (this.isCalendarPage())
+            if (this.IsCalendarPage())
             {
                 if (this.CalendarDayDict.Count != 0)
                     return;
@@ -136,16 +159,7 @@ namespace HarvestCalendar
                                                     count = g.Sum(t => t.Value)
                                                 }).OrderBy(g=>g.day).ThenByDescending(g=>g.count).GroupBy(g=>g.day);
 
-                // sum up number of crops by day and location, so that the detail can be showed as text (TODO)
-                // to show numbers by just location or by location+cropId, not decided
-                // if show text by hovering on icon, will pick location only as the text will be shorter
-                // if show text by clicking icon and open up a new menu, then a much more detailed text might be a better choice
-                var countQuery = allCropsHarvestDay.GroupBy(x => new { day = x.Key.Item1, location = x.Key.Item2 })
-                                                .Select(g => new {
-                                                    g.Key.day,
-                                                    g.Key.location,
-                                                    count = g.Sum(t => t.Value)
-                                                }).GroupBy(x => x.day);
+                var countQuery = allCropsHarvestDay.OrderBy(x=>x.Key.Item1).ThenBy(x=>x.Key.Item2).ThenBy(x=>x.Key.Item3);
 
                 foreach (var i in iconQuery)
                 {
@@ -156,12 +170,9 @@ namespace HarvestCalendar
                     }
                 }
 
-                foreach (var i in countQuery)
+                foreach (var i in countQuery) 
                 {
-                    foreach (var j in i)
-                    {
-                        CalendarDayDict[j.day].AddCrops(j.location, j.count);
-                    }
+                    CalendarDayDict[i.Key.Item1].AddCrops(i.Key.Item2, i.Key.Item3, i.Value);
                 }
                 
             } 
@@ -177,60 +188,43 @@ namespace HarvestCalendar
         {
             if (!this.Config.ToggleMod)
                 return;
-            if (!isCalendarPage())
+            if (Game1.activeClickableMenu == null || !IsCalendarPage())
                 return;
 
-            Billboard billboard = Game1.activeClickableMenu as Billboard;
-            List<ClickableTextureComponent> days = billboard.calendarDays;
-            
-
-            int today = Game1.dayOfMonth;
-            for (int i = today; i <= 28; i++) 
+            if (Game1.activeClickableMenu is Billboard billboard)
             {
-                if (!CalendarDayDict.ContainsKey(i))
-                    continue;
-                CalendarDayItem item = CalendarDayDict[i];
-                var produce = ItemRegistry.GetDataOrErrorItem(item.iconId);
-                var iconTexture = produce.GetTexture();
+                List<ClickableTextureComponent> days = billboard.calendarDays;
 
-                int offsetX = days[i-1].bounds.Width / 10 * this.Config.IconSize;
-                int offsetY = days[i - 1].bounds.Height / 10 * this.Config.IconSize;
-
-                // position hard coded to be top right corner
-                // three posible position in the future: topright, middleleft, bottomleft
-                // topright might be the best
-                //Vector2 position = new Vector2(days[i - 1].bounds.Right - offsetX, days[i - 1].bounds.Bottom - offsetY);
-                Vector2 position = new Vector2((days[i - 1].bounds.Width - offsetX)*this.Config.IconX + days[i-1].bounds.Left,
-                                                (days[i - 1].bounds.Height - offsetY) * this.Config.IconY + days[i-1].bounds.Top);
-
-                e.SpriteBatch.Draw(iconTexture, new Rectangle((int)position.X, (int)position.Y, offsetX, offsetY), produce.GetSourceRect(), Color.White);
-
-
-                // TODO: show message when hover on the icon or click on the day
-                // currently just show some on console
-                if (i > today + 3)
-                    continue;
-                string newHoverText = string.Empty;
-                newHoverText += $"On Day {i}:";
-                item.locationCrops.ForEach(lc =>
+                int today = Game1.dayOfMonth;
+                for (int i = today; i <= 28; i++)
                 {
-                    newHoverText += Environment.NewLine;
-                    newHoverText += $"{lc.Item1} has {lc.Item2} crops to be harvested";
-                });
-                this.Monitor.LogOnce($"{newHoverText}", LogLevel.Debug);
+                    if (!CalendarDayDict.ContainsKey(i))
+                        continue;
+                    CalendarDayItem item = CalendarDayDict[i];
+                    var produce = ItemRegistry.GetDataOrErrorItem(item.iconId);
+                    var iconTexture = produce.GetTexture();
+
+                    int offsetX = days[i - 1].bounds.Width / 10 * this.Config.IconSize;
+                    int offsetY = days[i - 1].bounds.Height / 10 * this.Config.IconSize;
+
+                    Vector2 position = new Vector2((days[i - 1].bounds.Width - offsetX) * this.Config.IconX + days[i - 1].bounds.Left,
+                                                    (days[i - 1].bounds.Height - offsetY) * this.Config.IconY + days[i - 1].bounds.Top);
+
+                    e.SpriteBatch.Draw(iconTexture, new Rectangle((int)position.X, (int)position.Y, offsetX, offsetY), produce.GetSourceRect(), Color.White);
+
+                }
+
+                // Redraw the cursor
+                billboard.drawMouse(e.SpriteBatch);
+
+                string text = Helper.Reflection.GetField<string>(billboard, "hoverText").GetValue();
+                // Redraw the hover text
+                if (text.Length > 0)
+                {
+                    IClickableMenu.drawHoverText(e.SpriteBatch, text, Game1.dialogueFont);
+                }
+
             }
-
-            // Redraw the cursor
-            billboard.drawMouse(e.SpriteBatch);
-
-            string text = Helper.Reflection.GetField<string>(billboard, "hoverText").GetValue();
-            // Redraw the hover text
-            if (text.Length > 0)
-            {
-                IClickableMenu.drawHoverText(e.SpriteBatch, text, Game1.dialogueFont);
-            }
-
-
         }
 
 
@@ -249,34 +243,99 @@ namespace HarvestCalendar
         }
 
 
- 
-
         /// <summary>
-        /// a simple class that store the calculated harvest data for a day
+        /// Handle button Change event, 
         /// </summary>
-        internal class CalendarDayItem 
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnButtonChanged(object? sender, ButtonsChangedEventArgs e) 
         {
-            public int dayOfMonth;
-            public string iconId;
-            public List<(string, int)> locationCrops;
-
-            public CalendarDayItem(int dayOfMonth, string id)
+            if (Game1.activeClickableMenu is null) 
             {
-                this.dayOfMonth = dayOfMonth;
-                this.iconId = id;
-                this.locationCrops = new();
+                if (Context.IsPlayerFree && Game1.currentMinigame is null) 
+                {
+                    if (Config.ToggleBlackListKeybind.JustPressed())
+                    {
+                        // open blacklist menu
+                        Helper.Input.SuppressActiveKeybinds(Config.ToggleBlackListKeybind);
+                        Game1.activeClickableMenu = new CropBlackListMenu(Config);
+                    }
+                    else if (Config.BlacklistTheCropKeybind.JustPressed()) 
+                    {
+                        // blacklist a crop
+                        Vector2 gamepadTile = Game1.player.CurrentTool != null
+                                              ? Utility.snapToInt(Game1.player.GetToolLocation() / Game1.tileSize)
+                                              : Utility.snapToInt(Game1.player.GetGrabTile());
+                        Vector2 mouseTile = Game1.currentCursorTile;
+
+                        Vector2 tile = Game1.options.gamepadControls && Game1.timerUntilMouseFade <= 0 ? gamepadTile : mouseTile;
+
+                        if (Game1.currentLocation.terrainFeatures?.TryGetValue(tile, out TerrainFeature? terrain) ?? false) 
+                        {
+                            if (terrain is HoeDirt hoeDirt)
+                            {
+                                Crop crop = hoeDirt.crop;
+                                if (crop != null)
+                                {
+                                    string cropId = crop.indexOfHarvest.Value;
+                                    string message;
+                                    if (Config.CropBlackList.Contains(cropId))
+                                    {
+                                        Config.RemoveFromBlackList(cropId);
+                                        Game1.playSound("pickUpItem");
+                                        message = I18n.UI_Remove_Notification(ItemRegistry.GetDataOrErrorItem(cropId).DisplayName);
+                                    }
+                                    else
+                                    {
+                                        Config.AddToBlackList(cropId);
+                                        Game1.playSound("trashcan");
+                                        message = I18n.UI_Add_Notification(ItemRegistry.GetDataOrErrorItem(cropId).DisplayName);
+                                    }
+                                    Game1.addHUDMessage(new HUDMessage(message) { noIcon = true });
+                                }
+                            }
+                        }
+                    }
+                }
             }
-
-            public void AddCrops(string location, int count) 
+            else if (IsCalendarPage()) 
             {
-                this.locationCrops.Add((location, count));
+                if (Config.ToggleCalendarDayDetailKeybind.JustPressed())
+                {
+                    // open Calendar day detail menu
+                    if (Game1.activeClickableMenu is Billboard billboard)
+                    { 
+                        List<ClickableTextureComponent> days = billboard.calendarDays;
+                        int selectedDay = -1;
+
+                        Rectangle b = new Rectangle(days[0].bounds.X, days[0].bounds.Y, days[0].bounds.Width * 7, days[0].bounds.Height * 4);
+                        var x = Utility.ModifyCoordinateForUIScale(Game1.getMouseX());
+                        var y = Utility.ModifyCoordinateForUIScale(Game1.getMouseY());
+                        if (b.Contains(x, y))
+                        {
+                            x -= days[0].bounds.X;
+                            y -= days[0].bounds.Y;
+                            var width = days[0].bounds.Width;
+                            var height = days[0].bounds.Height;
+                            selectedDay = 7 * (int)Math.Floor(y / height) + (int)Math.Floor(x / width) + 1;
+                        }
+
+                        if (CalendarDayDict.ContainsKey(selectedDay))
+                        {
+                            Game1.activeClickableMenu = new CalendarDayDetailMenu(CalendarDayDict[selectedDay], billboard);
+                        }
+                    }
+
+                }
+
+                
             }
         }
 
 
 
         /// <summary>Return if Calendar is open or not.</summary>
-        private bool isCalendarPage()
+        private bool IsCalendarPage()
         {
             return
                 Game1.activeClickableMenu is Billboard;
@@ -341,16 +400,27 @@ namespace HarvestCalendar
             
             foreach (TerrainFeature value in location.terrainFeatures.Values)
             {
-                HoeDirt hoeDirt = value as HoeDirt;
-                if (hoeDirt != null)
+                if (value is HoeDirt hoeDirt)
                 {
                     Crop crop = hoeDirt.crop;
                     if (crop == null || crop.dead.Value || crop.whichForageCrop.Value == Crop.forageCrop_gingerID)
                         continue;
-                    (int, int) days = CalculateDaysLeft(crop);
 
                     var cropId = crop.indexOfHarvest.Value;
-                    var locationName = location.NameOrUniqueName;
+                    if (Config.CropBlackList.Contains(cropId))
+                        continue;
+                    (int, int) days = CalculateDaysLeft(crop);
+
+
+                    string locationName;
+                    if (location.NameOrUniqueName == "Greenhouse" || location.NameOrUniqueName == "IslandWest")
+                    {
+                        locationName = Helper.Translation.Get(location.NameOrUniqueName);
+                    }
+                    else 
+                    {
+                        locationName = location.DisplayName;
+                    }
 
                     for (int i = today + days.Item1; i <= 28 && i >= today + days.Item1; i += days.Item2)
                     {
@@ -358,7 +428,7 @@ namespace HarvestCalendar
                         {
                             result[(i, locationName, cropId)] += 1;
                         }
-                        else 
+                        else
                         {
                             result.Add((i, locationName, cropId), 1);
                         }
@@ -366,13 +436,6 @@ namespace HarvestCalendar
                 }
             }
 
-            //var query = result.OrderBy(x => x.Key.Item1).ThenBy(x=>x.Key.Item2);
-            //foreach (var item in query)
-            //{
-            //    if (item.Key.Item1 > Game1.dayOfMonth + 7)
-            //        break;
-            //    this.Monitor.Log($"On {item.Key.Item1}, {item.Key.Item2} has {item.Value} {ItemRegistry.GetDataOrErrorItem(item.Key.Item3).DisplayName}!", LogLevel.Debug);
-            //}
 
             return result;
         }
