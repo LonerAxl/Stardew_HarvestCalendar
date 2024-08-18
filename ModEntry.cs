@@ -193,6 +193,9 @@ namespace HarvestCalendar
 
             if (Game1.activeClickableMenu is Billboard billboard)
             {
+                if (billboard.calendarDays == null || billboard.calendarDays.Count == 0 || billboard.calendarDays[0] == null)
+                    return;
+
                 List<ClickableTextureComponent> days = billboard.calendarDays;
 
                 int today = Game1.dayOfMonth;
@@ -304,7 +307,10 @@ namespace HarvestCalendar
                 {
                     // open Calendar day detail menu
                     if (Game1.activeClickableMenu is Billboard billboard)
-                    { 
+                    {
+                        if (billboard.calendarDays == null || billboard.calendarDays.Count == 0 || billboard.calendarDays[0] == null)
+                            return;
+
                         List<ClickableTextureComponent> days = billboard.calendarDays;
                         int selectedDay = -1;
 
@@ -397,7 +403,17 @@ namespace HarvestCalendar
 
             Dictionary<(int, string, string), int> result = new();
             int today = Game1.dayOfMonth;
-            
+
+            string locationName = location.NameOrUniqueName;
+            if (locationName == "Greenhouse" || locationName == "IslandWest")
+            {
+                locationName = Helper.Translation.Get(locationName);
+            }
+            else if (locationName == "Farm")
+            {
+                locationName = location.DisplayName;
+            }
+
             foreach (TerrainFeature value in location.terrainFeatures.Values)
             {
                 if (value is HoeDirt hoeDirt)
@@ -411,16 +427,6 @@ namespace HarvestCalendar
                         continue;
                     (int, int) days = CalculateDaysLeft(crop);
 
-
-                    string locationName;
-                    if (location.NameOrUniqueName == "Greenhouse" || location.NameOrUniqueName == "IslandWest")
-                    {
-                        locationName = Helper.Translation.Get(location.NameOrUniqueName);
-                    }
-                    else 
-                    {
-                        locationName = location.DisplayName;
-                    }
 
                     for (int i = today + days.Item1; i <= 28 && i >= today + days.Item1; i += days.Item2)
                     {
